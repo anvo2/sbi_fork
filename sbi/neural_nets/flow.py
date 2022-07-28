@@ -62,13 +62,17 @@ def build_made(
         warn("In one-dimensional output space, this flow is limited to Gaussians")
 
     transform = transforms.IdentityTransform()
-
-    z_score_x_bool, structured_x = z_score_parser(z_score_x)
+    
+    ##IAN: changed to False so we don't have a problem with standardising net function?
+    #z_score_x_bool, structured_x = z_score_parser(z_score_x)
+    z_score_x_bool, structured_x = False, False
+    
     if z_score_x_bool:
         transform_zx = standardizing_transform(batch_x, structured_x)
         transform = transforms.CompositeTransform([transform_zx, transform])
-
-    z_score_y_bool, structured_y = z_score_parser(z_score_y)
+    ##IAN: changed to False so we don't have a problem with standardising net function?
+    #z_score_y_bool, structured_y = z_score_parser(z_score_y)
+    z_score_y_bool, structured_y = False, False
     if z_score_y_bool:
         embedding_net = nn.Sequential(
             standardizing_net(batch_y, structured_y), embedding_net
@@ -157,14 +161,19 @@ def build_maf(
             transforms.RandomPermutation(features=x_numel),
         ]
         transform_list += block
-
-    z_score_x_bool, structured_x = z_score_parser(z_score_x)
+        
+    ##IAN: changed to False so we don't have a problem with standardising net function?
+    #z_score_x_bool, structured_x = z_score_parser(z_score_x)
+    
+    z_score_x_bool, structured_x = False, False
     if z_score_x_bool:
         transform_list = [
             standardizing_transform(batch_x, structured_x)
         ] + transform_list
-
-    z_score_y_bool, structured_y = z_score_parser(z_score_y)
+    
+    ##IAN: changed to False so we don't have a problem with standardising net function?
+    #z_score_x_bool, structured_x = z_score_parser(z_score_x)
+    z_score_y_bool, structured_y = False, False
     if z_score_y_bool:
         embedding_net = nn.Sequential(
             standardizing_net(batch_y, structured_y), embedding_net

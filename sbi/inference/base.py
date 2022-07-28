@@ -16,6 +16,7 @@ from torch.utils.data.sampler import SubsetRandomSampler
 from torch.utils.tensorboard.writer import SummaryWriter
 
 import sbi.inference
+from sbi.inference.datasetTorch import DatasetTorch
 from sbi.inference.posteriors.base_posterior import NeuralPosterior
 from sbi.simulators.simutils import simulate_in_batches
 from sbi.utils import (
@@ -29,6 +30,11 @@ from sbi.utils import (
 from sbi.utils.sbiutils import get_simulations_since_round
 from sbi.utils.torchutils import check_if_prior_on_device, process_device
 from sbi.utils.user_input_checks import prepare_for_sbi
+
+from os import listdir
+from os.path import isfile, join
+
+
 
 
 def infer(
@@ -132,8 +138,10 @@ class NeuralInference(ABC):
         self._model_bank = []
 
         # Initialize list that indicates the round from which simulations were drawn.
-        self._data_round_index = []
-
+        self._data_round_index = [0]
+        
+        ##IAN: append 0 to list this to bypass append_simulation
+        
         self._round = 0
         self._val_log_prob = float("-Inf")
 
@@ -176,7 +184,7 @@ class NeuralInference(ABC):
 
         Returns: Parameters, simulation outputs, prior masks.
         """
-
+        print('Getting simulation! Big testing moment!')
         theta = get_simulations_since_round(
             self._theta_roundwise, self._data_round_index, starting_round
         )
@@ -216,66 +224,110 @@ class NeuralInference(ABC):
     ) -> NeuralPosterior:
         raise NotImplementedError
 
+#     def get_dataloaders(
+#         self,
+#         dataset: data.TensorDataset,
+#         training_batch_size: int = 50,
+#         validation_fraction: float = 0.1,
+#         resume_training: bool = False,
+#         dataloader_kwargs: Optional[dict] = None,
+#     ) -> Tuple[data.DataLoader, data.DataLoader]:
+#         """Return dataloaders for training and validation.
+
+#         Args:
+#             dataset: holding all theta and x, optionally masks.
+#             training_batch_size: training arg of inference methods.
+#             resume_training: Whether the current call is resuming training so that no
+#                 new training and validation indices into the dataset have to be created.
+#             dataloader_kwargs: Additional or updated kwargs to be passed to the training
+#                 and validation dataloaders (like, e.g., a collate_fn).
+
+#         Returns:
+#             Tuple of dataloaders for training and validation.
+
+#         """
+
+#         # Get total number of training examples.
+#         num_examples = len(dataset)
+
+#         # Select random train and validation splits from (theta, x) pairs.
+#         num_training_examples = int((1 - validation_fraction) * num_examples)
+#         num_validation_examples = num_examples - num_training_examples
+
+#         if not resume_training:
+#             permuted_indices = torch.randperm(num_examples)
+#             self.train_indices, self.val_indices = (
+#                 permuted_indices[:num_training_examples],
+#                 permuted_indices[num_training_examples:],
+#             )
+
+#         # Create training and validation loaders using a subset sampler.
+#         # Intentionally use dicts to define the default dataloader args
+#         # Then, use dataloader_kwargs to override (or add to) any of these defaults
+#         # https://stackoverflow.com/questions/44784577/in-method-call-args-how-to-override-keyword-argument-of-unpacked-dict
+#         train_loader_kwargs = {
+#             "batch_size": min(training_batch_size, num_training_examples),
+#             "drop_last": True,
+#             "sampler": SubsetRandomSampler(self.train_indices.tolist()),
+#         }
+#         val_loader_kwargs = {
+#             "batch_size": min(training_batch_size, num_validation_examples),
+#             "shuffle": False,
+#             "drop_last": True,
+#             "sampler": SubsetRandomSampler(self.val_indices.tolist()),
+#         }
+#         if dataloader_kwargs is not None:
+#             train_loader_kwargs = dict(train_loader_kwargs, **dataloader_kwargs)
+#             val_loader_kwargs = dict(val_loader_kwargs, **dataloader_kwargs)
+
+#         train_loader = data.DataLoader(dataset, **train_loader_kwargs)
+#         val_loader = data.DataLoader(dataset, **val_loader_kwargs)
+
+#         return train_loader, val_loader
+    
     def get_dataloaders(
         self,
-        dataset: data.TensorDataset,
-        training_batch_size: int = 50,
-        validation_fraction: float = 0.1,
-        resume_training: bool = False,
-        dataloader_kwargs: Optional[dict] = None,
-    ) -> Tuple[data.DataLoader, data.DataLoader]:
-        """Return dataloaders for training and validation.
+        training_batch_size,
+        total_batches,
+        path,
+        n_obs = None):
+        
+        '''
+        If n_obs is None, call dataloader with np.randint(100,500)
+        If n_obs is int, call dataloader with n_obs
+        '''
+        trainpath = path + 'train/'
+        onlyfiles = [f for f in listdir(trainpath) if isfile(join(trainpath, f))]
+        file_name_train = trainpath + onlyfiles[0]
+        
+        valpath = path + 'val/'
+        onlyfiles_val = [f for f in listdir(valpath) if isfile(join(valpath, f))]
+        file_name_val = valpath + onlyfiles_val[0]
+        
+        if n_obs == None:
+            dataloader_train = DatasetTorch(file_IDs = onlyfiles,
+                                   total_batches = total_batches,
+                                   path = trainpath,
+                                   batch_size = training_batch_size)
 
-        Args:
-            dataset: holding all theta and x, optionally masks.
-            training_batch_size: training arg of inference methods.
-            resume_training: Whether the current call is resuming training so that no
-                new training and validation indices into the dataset have to be created.
-            dataloader_kwargs: Additional or updated kwargs to be passed to the training
-                and validation dataloaders (like, e.g., a collate_fn).
-
-        Returns:
-            Tuple of dataloaders for training and validation.
-
-        """
-
-        # Get total number of training examples.
-        num_examples = len(dataset)
-
-        # Select random train and validation splits from (theta, x) pairs.
-        num_training_examples = int((1 - validation_fraction) * num_examples)
-        num_validation_examples = num_examples - num_training_examples
-
-        if not resume_training:
-            permuted_indices = torch.randperm(num_examples)
-            self.train_indices, self.val_indices = (
-                permuted_indices[:num_training_examples],
-                permuted_indices[num_training_examples:],
-            )
-
-        # Create training and validation loaders using a subset sampler.
-        # Intentionally use dicts to define the default dataloader args
-        # Then, use dataloader_kwargs to override (or add to) any of these defaults
-        # https://stackoverflow.com/questions/44784577/in-method-call-args-how-to-override-keyword-argument-of-unpacked-dict
-        train_loader_kwargs = {
-            "batch_size": min(training_batch_size, num_training_examples),
-            "drop_last": True,
-            "sampler": SubsetRandomSampler(self.train_indices.tolist()),
-        }
-        val_loader_kwargs = {
-            "batch_size": min(training_batch_size, num_validation_examples),
-            "shuffle": False,
-            "drop_last": True,
-            "sampler": SubsetRandomSampler(self.val_indices.tolist()),
-        }
-        if dataloader_kwargs is not None:
-            train_loader_kwargs = dict(train_loader_kwargs, **dataloader_kwargs)
-            val_loader_kwargs = dict(val_loader_kwargs, **dataloader_kwargs)
-
-        train_loader = data.DataLoader(dataset, **train_loader_kwargs)
-        val_loader = data.DataLoader(dataset, **val_loader_kwargs)
-
-        return train_loader, val_loader
+            dataloader_val = DatasetTorch(file_IDs = onlyfiles_val,
+                           total_batches = int(total_batches * .1),
+                           path = valpath,
+                           batch_size = training_batch_size)
+        else:
+            dataloader_train = DatasetTorch(file_IDs = onlyfiles,
+                                   total_batches = total_batches,
+                                   path = trainpath,
+                                   n_obs = n_obs,
+                                   batch_size = training_batch_size)
+            dataloader_val = DatasetTorch(file_IDs = onlyfiles_val,
+                           total_batches = int(total_batches * .1),
+                           path = valpath,
+                           n_obs = n_obs,
+                           batch_size = training_batch_size)
+        
+        return dataloader_train, dataloader_val
+    
 
     def _converged(self, epoch: int, stop_after_epochs: int) -> bool:
         """Return whether the training converged yet and save best model state so far.

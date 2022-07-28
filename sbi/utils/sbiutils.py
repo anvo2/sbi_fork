@@ -168,6 +168,10 @@ class Standardize(nn.Module):
         self.register_buffer("_std", std)
 
     def forward(self, tensor):
+        print('Tensor shape')
+        print(tensor.shape)
+        print('self._mean shape')
+        print(self._mean.shape)
         return (tensor - self._mean) / self._std
 
 

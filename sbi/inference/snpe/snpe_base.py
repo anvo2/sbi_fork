@@ -76,8 +76,9 @@ class PosteriorEstimator(NeuralInference, ABC):
             self._build_neural_net = utils.posterior_nn(model=density_estimator)
         else:
             self._build_neural_net = density_estimator
-
-        self._proposal_roundwise = []
+        
+        #IAN: Append None here to bypass append_simulation
+        self._proposal_roundwise = [None]
         self.use_non_atomic_loss = False
 
         # Extra SNPE-specific fields summary_writer.
@@ -155,6 +156,7 @@ class PosteriorEstimator(NeuralInference, ABC):
     def train(
         self,
         training_batch_size: int = 50,
+        total_batches: int = 100,
         learning_rate: float = 5e-4,
         validation_fraction: float = 0.1,
         stop_after_epochs: int = 20,
@@ -235,12 +237,12 @@ class PosteriorEstimator(NeuralInference, ABC):
         if self.use_non_atomic_loss or hasattr(self, "_ran_final_round"):
             start_idx = self._round
 
-        theta, x, prior_masks = self.get_simulations(
-            start_idx, exclude_invalid_x, warn_on_invalid=True
-        )
-
+#         theta, x, prior_masks = self.get_simulations(
+#             start_idx, exclude_invalid_x, warn_on_invalid=True
+#         )
+    
         # Dataset is shared for training and validation loaders.
-        dataset = data.TensorDataset(theta, x, prior_masks)
+#         dataset = data.TensorDataset(theta, x, prior_masks)
 
         # Set the proposal to the last proposal that was passed by the user. For
         # atomic SNPE, it does not matter what the proposal is. For non-atomic
@@ -248,13 +250,24 @@ class PosteriorEstimator(NeuralInference, ABC):
         # last proposal.
         proposal = self._proposal_roundwise[-1]
 
-        train_loader, val_loader = self.get_dataloaders(
-            dataset,
-            training_batch_size,
-            validation_fraction,
-            resume_training,
-            dataloader_kwargs=dataloader_kwargs,
-        )
+#         train_loader, val_loader = self.get_dataloaders(
+#             dataset,
+#             training_batch_size,
+#             validation_fraction,
+#             resume_training,
+#             dataloader_kwargs=dataloader_kwargs,
+#         )
+        
+        train_set, val_set = self.get_dataloaders(
+            training_batch_size = training_batch_size,
+            total_batches = total_batches,
+            path = "data/avo2/snpe_trainingtraining_data_n_5000/angle/")
+        
+        train_loader = torch.utils.data.DataLoader(train_set)
+        val_loader = torch.utils.data.DataLoader(val_set)
+        
+        dataiter = iter(train_set)
+        theta_one_batch, x_one_batch = next(dataiter)
 
         # First round or if retraining from scratch:
         # Call the `self._build_neural_net` with the rounds' thetas and xs as
@@ -262,18 +275,20 @@ class PosteriorEstimator(NeuralInference, ABC):
         # This is passed into NeuralPosterior, to create a neural posterior which
         # can `sample()` and `log_prob()`. The network is accessible via `.net`.
         if self._neural_net is None or retrain_from_scratch:
-            self._neural_net = self._build_neural_net(
-                theta[self.train_indices], x[self.train_indices]
-            )
+#             self._neural_net = self._build_neural_net(
+#                 theta[self.train_indices], x[self.train_indices]
+#             )
+            ##IAN: Supplied with theta_one_batch and x_one_batch instead
+            self._neural_net = self._build_neural_net(theta_one_batch, x_one_batch)
             # If data on training device already move net as well.
             if (
                 not self._device == "cpu"
-                and f"{x.device.type}:{x.device.index}" == self._device
+                and f"{x_one_batch.device.type}:{x_one_batch.device.index}" == self._device
             ):
                 self._neural_net.to(self._device)
 
-            test_posterior_net_for_multi_d_x(self._neural_net, theta, x)
-            self._x_shape = x_shape_from_simulation(x)
+            test_posterior_net_for_multi_d_x(self._neural_net, theta_one_batch, x_one_batch)
+            self._x_shape = x_shape_from_simulation(x_one_batch)
 
         # Move entire net to device for training.
         self._neural_net.to(self._device)
@@ -295,10 +310,11 @@ class PosteriorEstimator(NeuralInference, ABC):
             for batch in train_loader:
                 self.optimizer.zero_grad()
                 # Get batches on current device.
+                masks_batch_fake = torch.tensor([])
                 theta_batch, x_batch, masks_batch = (
-                    batch[0].to(self._device),
-                    batch[1].to(self._device),
-                    batch[2].to(self._device),
+                    batch[0][0].to(self._device),
+                    batch[1][0].to(self._device),
+                    masks_batch_fake.to(self._device),
                 )
 
                 train_losses = self._loss(
@@ -319,6 +335,7 @@ class PosteriorEstimator(NeuralInference, ABC):
             train_log_prob_average = train_log_probs_sum / (
                 len(train_loader) * train_loader.batch_size  # type: ignore
             )
+            print('\n' + train_log_prob_average)
             self._summary["train_log_probs"].append(train_log_prob_average)
 
             # Calculate validation performance.
@@ -327,10 +344,12 @@ class PosteriorEstimator(NeuralInference, ABC):
 
             with torch.no_grad():
                 for batch in val_loader:
+                #IAN: Also make a fake mask_batch
+                    masks_batch_fake = torch.tensor([])
                     theta_batch, x_batch, masks_batch = (
-                        batch[0].to(self._device),
-                        batch[1].to(self._device),
-                        batch[2].to(self._device),
+                        batch[0][0].to(self._device),
+                        batch[1][0].to(self._device),
+                        masks_batch_fake.to(self._device),
                     )
                     # Take negative loss here to get validation log_prob.
                     val_losses = self._loss(
@@ -359,7 +378,7 @@ class PosteriorEstimator(NeuralInference, ABC):
         self._summary["best_validation_log_probs"].append(self._best_val_log_prob)
 
         # Update tensorboard and summary dict.
-        self._summarize(round_=self._round, x_o=None, theta_bank=theta, x_bank=x)
+        #self._summarize(round_=self._round, x_o=None, theta_bank=theta, x_bank=x)
 
         # Update description for progress bar.
         if show_train_summary:
@@ -370,10 +389,13 @@ class PosteriorEstimator(NeuralInference, ABC):
         self._neural_net.zero_grad(set_to_none=True)
 
         return deepcopy(self._neural_net)
-
+    
+    
+    ##IAN: build_posterior now also takes in x_observed to collect its shape
     def build_posterior(
         self,
         density_estimator: Optional[nn.Module] = None,
+        x_observed: Tensor = None,
         prior: Optional[Distribution] = None,
         sample_with: str = "rejection",
         mcmc_method: str = "slice_np",
@@ -439,19 +461,20 @@ class PosteriorEstimator(NeuralInference, ABC):
             posterior_estimator=posterior_estimator, prior=prior, x_o=None
         )
 
+        ##IAN: here we collect x_shape by calling x_observed.shape 
         if sample_with == "rejection":
             if "proposal" in rejection_sampling_parameters.keys():
                 self._posterior = RejectionPosterior(
                     potential_fn=potential_fn,
                     device=device,
-                    x_shape=self._x_shape,
+                    x_shape=x_observed.shape,
                     **rejection_sampling_parameters,
                 )
             else:
                 self._posterior = DirectPosterior(
                     posterior_estimator=posterior_estimator,
                     prior=prior,
-                    x_shape=self._x_shape,
+                    x_shape=x_observed.shape,
                     device=device,
                 )
         elif sample_with == "mcmc":
@@ -461,7 +484,7 @@ class PosteriorEstimator(NeuralInference, ABC):
                 proposal=prior,
                 method=mcmc_method,
                 device=device,
-                x_shape=self._x_shape,
+                x_shape=x_observed.shape,
                 **mcmc_parameters,
             )
         elif sample_with == "vi":
@@ -471,7 +494,7 @@ class PosteriorEstimator(NeuralInference, ABC):
                 prior=prior,  # type: ignore
                 vi_method=vi_method,
                 device=device,
-                x_shape=self._x_shape,
+                x_shape=sx_observed.shape,
                 **vi_parameters,
             )
         else:
