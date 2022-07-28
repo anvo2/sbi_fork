@@ -155,6 +155,7 @@ class PosteriorEstimator(NeuralInference, ABC):
 
     def train(
         self,
+        path: str = "data/avo2/snpe_trainingtraining_data_n_5000/angle/",
         training_batch_size: int = 50,
         total_batches: int = 100,
         learning_rate: float = 5e-4,
@@ -174,6 +175,7 @@ class PosteriorEstimator(NeuralInference, ABC):
         r"""Return density estimator that approximates the distribution $p(\theta|x)$.
 
         Args:
+            path: Path to the data file
             training_batch_size: Training batch size.
             learning_rate: Learning rate for Adam optimizer.
             validation_fraction: The fraction of data to use for validation.
@@ -261,7 +263,7 @@ class PosteriorEstimator(NeuralInference, ABC):
         train_set, val_set = self.get_dataloaders(
             training_batch_size = training_batch_size,
             total_batches = total_batches,
-            path = "data/avo2/snpe_trainingtraining_data_n_5000/angle/")
+            path = path)
         
         train_loader = torch.utils.data.DataLoader(train_set)
         val_loader = torch.utils.data.DataLoader(val_set)
