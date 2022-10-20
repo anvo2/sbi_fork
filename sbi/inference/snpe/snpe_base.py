@@ -155,9 +155,10 @@ class PosteriorEstimator(NeuralInference, ABC):
 
     def train(
         self,
-        path: str = "data/avo2/snpe_trainingtraining_data_n_5000/angle/",
+        total_batches,
+        n_obs: Optional[int] = None,
+        path: str = "/users/avo2/data/avo2/snpe_trainingtraining_data_n_5000/angle/",
         training_batch_size: int = 50,
-        total_batches: int = 100,
         learning_rate: float = 5e-4,
         validation_fraction: float = 0.1,
         stop_after_epochs: int = 20,
@@ -259,8 +260,11 @@ class PosteriorEstimator(NeuralInference, ABC):
 #             resume_training,
 #             dataloader_kwargs=dataloader_kwargs,
 #         )
-        
+        print('path' + path)
+        print('device')
+        print(self._device)
         train_set, val_set = self.get_dataloaders(
+            n_obs = n_obs,
             training_batch_size = training_batch_size,
             total_batches = total_batches,
             path = path)
@@ -337,7 +341,7 @@ class PosteriorEstimator(NeuralInference, ABC):
             train_log_prob_average = train_log_probs_sum / (
                 len(train_loader) * train_loader.batch_size  # type: ignore
             )
-            print('\n' + train_log_prob_average)
+            print('\n' + str(train_log_prob_average))
             self._summary["train_log_probs"].append(train_log_prob_average)
 
             # Calculate validation performance.

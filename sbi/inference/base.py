@@ -210,17 +210,22 @@ class NeuralInference(ABC):
     @abstractmethod
     def train(
         self,
+        total_batches,
+        path: str = "data/avo2/snpe_trainingtraining_data_n_5000/angle/",
         training_batch_size: int = 50,
         learning_rate: float = 5e-4,
         validation_fraction: float = 0.1,
         stop_after_epochs: int = 20,
-        max_num_epochs: Optional[int] = None,
+        max_num_epochs: int = 2**31 - 1,
         clip_max_norm: Optional[float] = 5.0,
         calibration_kernel: Optional[Callable] = None,
         exclude_invalid_x: bool = True,
+        resume_training: bool = False,
+        force_first_round_loss: bool = False,
         discard_prior_samples: bool = False,
         retrain_from_scratch: bool = False,
         show_train_summary: bool = False,
+        dataloader_kwargs: Optional[dict] = None,
     ) -> NeuralPosterior:
         raise NotImplementedError
 
@@ -296,35 +301,40 @@ class NeuralInference(ABC):
         If n_obs is None, call dataloader with np.randint(100,500)
         If n_obs is int, call dataloader with n_obs
         '''
-        trainpath = path + 'train/'
+        trainpath = path + "train/"
         onlyfiles = [f for f in listdir(trainpath) if isfile(join(trainpath, f))]
         file_name_train = trainpath + onlyfiles[0]
         
         valpath = path + 'val/'
         onlyfiles_val = [f for f in listdir(valpath) if isfile(join(valpath, f))]
         file_name_val = valpath + onlyfiles_val[0]
-        
+        print('get_dataloader device')
+        print(self._device)
         if n_obs == None:
             dataloader_train = DatasetTorch(file_IDs = onlyfiles,
                                    total_batches = total_batches,
                                    path = trainpath,
-                                   batch_size = training_batch_size)
+                                   batch_size = training_batch_size,
+                                   device = self._device)
 
             dataloader_val = DatasetTorch(file_IDs = onlyfiles_val,
                            total_batches = int(total_batches * .1),
                            path = valpath,
-                           batch_size = training_batch_size)
+                           batch_size = training_batch_size,
+                           device = self._device)
         else:
             dataloader_train = DatasetTorch(file_IDs = onlyfiles,
                                    total_batches = total_batches,
                                    path = trainpath,
                                    n_obs = n_obs,
-                                   batch_size = training_batch_size)
+                                   batch_size = training_batch_size,
+                                   device = self._device)
             dataloader_val = DatasetTorch(file_IDs = onlyfiles_val,
                            total_batches = int(total_batches * .1),
                            path = valpath,
                            n_obs = n_obs,
-                           batch_size = training_batch_size)
+                           batch_size = training_batch_size,
+                           device = self._device)
         
         return dataloader_train, dataloader_val
     

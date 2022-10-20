@@ -62,6 +62,7 @@ class DatasetTorch(torch.utils.data.Dataset):
     
     def __init_file_shape(self):
         full_path = self.path + self.file_IDs[0]
+        print(full_path)
         init_file = pickle.load(open(full_path, 'rb'))
         #print('Init file shape: ', init_file['data'].shape, init_file['labels'].shape)
         
@@ -69,7 +70,11 @@ class DatasetTorch(torch.utils.data.Dataset):
         file_shape_dict: collects the length of the dictionary, which is then used to determine how many batches a file contains.
         '''
         self.file_shape_dict = len(init_file)
+        print('File_shape_dict')
+        print(self.file_shape_dict)
         self.batches_per_file = int(self.file_shape_dict / self.batch_size)
+        print('batches per file')
+        print(self.batches_per_file)
         self.input_dim = init_file[0]['data'].shape
         self.label_dim = init_file[0]['labels'].shape
         return
@@ -77,7 +82,6 @@ class DatasetTorch(torch.utils.data.Dataset):
     def __load_file(self, file_index):
         full_path = self.path + self.file_IDs[file_index]
 #         print('About to load file')
-#         print(full_path)
         self.tmp_data = pickle.load(open(full_path, 'rb'))
         #shuffle_idx = np.random.choice(self.tmp_data['data'].shape[0], size = self.tmp_data['data'].shape[0], replace = True)
         #self.tmp_data['data'] = self.tmp_data['data'][shuffle_idx, :]
@@ -139,7 +143,7 @@ class DatasetTorch(torch.utils.data.Dataset):
             data.append (newdict[k]['data'][indices])
             labels.append(newdict[k]['labels'])
         
-        if self.device == 'cuda':
+        if self.device == 'cuda:0':
             dataT = torch.tensor(np.array(data),dtype=torch.float, device = 'cuda')
             labelT = torch.tensor(np.array(labels), dtype = torch.float, device = 'cuda')
         else:

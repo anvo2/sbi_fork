@@ -97,6 +97,8 @@ class SNPE_A(PosteriorEstimator):
 
     def train(
         self,
+        n_obs: Optional[int] = None,
+        total_batches: int = 50,
         final_round: bool = False,
         training_batch_size: int = 50,
         learning_rate: float = 5e-4,
